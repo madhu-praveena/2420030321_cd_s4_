@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compare direct interpretation with intermediate-code virtual machine execution.">
+  <title>Interpreter vs Compiler | Compiler Design Lab</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <span class="eyebrow">COMPILER DESIGN LAB</span>
+        <h1>Interpreter <span>vs</span> Compiler</h1>
+        <p class="subtitle">Run one mini-language program through two execution paths and compare the phases.</p>
+      </div>
+      <nav aria-label="Main navigation">
+        <a class="active" href="{{ url_for('index') }}">Workbench</a>
+        <a href="{{ url_for('batch') }}">Batch tests</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="panel editor-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-kicker">01 / INPUT</span>
+          <h2>Source program</h2>
+        </div>
+        <span class="pill">Mini-language</span>
+      </div>
+
+      <form method="get" action="{{ url_for('index') }}" class="sample-form">
+        <label for="sample">Load an example program</label>
+        <select id="sample" name="sample" onchange="this.form.submit()">
+          {% for name in samples %}
+            <option value="{{ name }}" {% if selected == name %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <form method="post" action="{{ url_for('run') }}" id="runForm">
+        <label for="sourceEditor">Write or edit your program</label>
+        <textarea id="sourceEditor" name="source" spellcheck="false" autocapitalize="off" autocomplete="off" required>{{ source }}</textarea>
+        <div class="editor-meta">
+          <span id="charCount" aria-live="polite">0 characters</span>
+          <span>Tip: press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> or <kbd>⌘</kbd> + <kbd>Enter</kbd> to run</span>
+        </div>
+        <div class="button-row">
+          <button class="button button-primary" type="submit" id="runButton">▶ Run comparison</button>
+          <a class="button button-light" href="{{ url_for('batch') }}">Run all samples</a>
+        </div>
+      </form>
+      <div class="syntax-note">
+        <strong>Supported syntax</strong>
+        <p>Assignments, integers, + − * / %, comparisons, &&, ||, !, if/else, while, blocks and print(expression).</p>
+      </div>
+    </section>
+
+    {% if error %}
+      <section class="panel error-panel" role="alert">
+        <div class="section-heading"><h2>Program error</h2><span class="status status-error">Needs attention</span></div>
+        <pre>{{ error }}</pre>
+      </section>
+    {% endif %}
+
+    {% if result %}
+      <section class="panel results-panel" id="results">
+        <div class="section-heading">
+          <div><span class="section-kicker">02 / RESULTS</span><h2>Execution comparison</h2></div>
+          <span class="status {% if result.correct %}status-good{% else %}status-error{% endif %}">
+            {% if result.correct %}✓ Outputs match{% else %}Output mismatch{% endif %}
+          </span>
+        </div>
+
+        <div class="output-grid">
+          <article class="output-card">
+            <h3><span class="dot dot-blue"></span>Interpreter output</h3>
+            <pre>{{ result.interpreter.output|join('\n') }}</pre>
+          </article>
+          <article class="output-card">
+            <h3><span class="dot dot-green"></span>Compiler + VM output</h3>
+            <pre>{{ result.vm.output|join('\n') }}</pre>
+          </article>
+        </div>
+
+        <div class="section-heading compact-heading"><h2>Phase-wise timing</h2><span class="muted-label">Milliseconds (ms)</span></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Processing phase</th><th>Interpreter</th><th>Compiler + VM</th></tr></thead>
+            <tbody>
+              <tr><td>Lexical analysis</td><td>{{ '%.4f'|format(result.interpreter.lex_ms) }} ms</td><td>{{ '%.4f'|format(result.vm.lex_ms) }} ms</td></tr>
+              <tr><td>Parsing</td><td>{{ '%.4f'|format(result.interpreter.parse_ms) }} ms</td><td>{{ '%.4f'|format(result.vm.parse_ms) }} ms</td></tr>
+              <tr><td>Translation</td><td>Not applicable</td><td>{{ '%.4f'|format(result.vm.translation_ms) }} ms</td></tr>
+              <tr><td>Execution</td><td>{{ '%.4f'|format(result.interpreter.execution_ms) }} ms</td><td>{{ '%.4f'|format(result.vm.execution_ms) }} ms</td></tr>
+              <tr class="total-row"><td>Total measured pipeline</td><td>{{ '%.4f'|format(result.interpreter.total_ms) }} ms</td><td>{{ '%.4f'|format(result.vm.total_ms) }} ms</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric-card"><span>VM instruction count</span><strong>{{ result.vm.instruction_count }}</strong></div>
+          <div class="metric-card"><span>VM executed steps</span><strong>{{ result.vm.executed_steps }}</strong></div>
+          <div class="metric-card"><span>Interpreter method</span><strong class="metric-word">AST evaluation</strong></div>
+        </div>
+
+        <div class="bytecode-section">
+          <h3>Generated intermediate instructions</h3>
+          <pre class="bytecode">{{ result.vm.bytecode }}</pre>
+        </div>
+
+        <div class="explanation-box">
+          <h3>What do these results mean?</h3>
+          <p>{{ result.explanation }}</p>
+          <small>Very short programs can show noisy timings. Run batch tests and compare repeated measurements before drawing conclusions.</small>
+        </div>
+
+        <form method="post" action="{{ url_for('export') }}">
+          <input type="hidden" name="payload" value='{{ result|tojson|forceescape }}'>
+          <button class="button button-light" type="submit">↓ Export CSV report</button>
+        </form>
+      </section>
+    {% endif %}
+
+    <section class="panel concepts-panel">
+      <div class="section-heading"><div><span class="section-kicker">03 / CONCEPTS</span><h2>How the two paths work</h2></div></div>
+      <div class="concept-grid">
+        <article><span class="concept-number">01</span><h3>Interpreter</h3><p>Lexes and parses the source, then evaluates the Abstract Syntax Tree (AST) directly.</p></article>
+        <article><span class="concept-number">02</span><h3>Compiler path</h3><p>Lexes and parses the same source, translates the AST into VM instructions, then executes them.</p></article>
+        <article><span class="concept-number">03</span><h3>Fair measurement</h3><p>Each path gets its own lexer/parser pass. Translation is measured only where it exists.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer>Educational mini-language only · Built for Compiler Design</footer>
+</body>
+</html>
